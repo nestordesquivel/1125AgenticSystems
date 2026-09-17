@@ -130,15 +130,15 @@ function parseCsv(csv: string): Row[] {
 }
 
 const COLORS = {
-  solar: '#f2c94c',
-  wind: '#82c9e7',
-  oil: '#6b7477',
-  gas: '#ed9b52',
-  coal: '#343b3d',
-  hydro: '#245c85',
-  other: '#63a978',
-  household: '#286f9b',
-  business: '#e28a43',
+  solar: '#e9c46a',
+  wind: '#79b4c4',
+  oil: '#6d7b7d',
+  gas: '#df9566',
+  coal: '#39494c',
+  hydro: '#357494',
+  other: '#5f9c78',
+  household: '#357494',
+  business: '#df9566',
   production: '#163f52',
   imports: '#2b8c86',
   exports: '#c9514a',
@@ -202,6 +202,25 @@ function ChartHeader({
     </div>
   );
 }
+
+function ChartTakeaways({ items }: { items: string[] }) {
+  return (
+    <div className="chart-takeaways" aria-label="Chart conclusions">
+      {items.map((item) => (
+        <p key={item}>{item}</p>
+      ))}
+    </div>
+  );
+}
+
+const mixLabel = {
+  position: 'center' as const,
+  fill: '#ffffff',
+  fontSize: 9,
+  fontWeight: 700,
+  formatter: (value: unknown) =>
+    Number(value) >= 10 ? `${Number(value).toFixed(0)}%` : '',
+};
 
 function MixLegend() {
   const items = [
@@ -425,7 +444,7 @@ function ConsumptionMap({ rows }: { rows: Row[] }) {
                 b.total_energy_consumption_exajoules -
                 a.total_energy_consumption_exajoules,
             )
-            .slice(0, 6)
+            .slice(0, 10)
             .map((r, i) => (
               <li key={r.country}>
                 <span>{i + 1}</span>
@@ -437,11 +456,18 @@ function ConsumptionMap({ rows }: { rows: Row[] }) {
             ))}
         </ol>
       </div>
+      <ChartTakeaways
+        items={[
+          'China and the United States account for the largest consumption scale in this 15-market set.',
+          'The top-10 ranking provides context beyond the map color intensity.',
+        ]}
+      />
     </section>
   );
 }
 
 function MetricRanges({ rows }: { rows: Row[] }) {
+  const [open, setOpen] = useState(false);
   const configs = [
     {
       label: 'Total consumption',
@@ -469,7 +495,17 @@ function MetricRanges({ rows }: { rows: Row[] }) {
     },
   ] as const;
   return (
-    <section className="range-grid" aria-label="Metric reference ranges">
+    <Collapsible open={open} onOpenChange={setOpen} className="details-panel">
+      <CollapsibleTrigger className="details-trigger">
+        <span>
+          <BarChart3 size={15} />
+          Details · reference ranges
+        </span>
+        <small>Min, average and max across the 15 markets</small>
+        <ChevronDown size={15} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <section className="range-grid" aria-label="Metric reference ranges">
       {configs.map((config) => {
         const values = rows
           .map((row) => ({
@@ -508,8 +544,10 @@ function MetricRanges({ rows }: { rows: Row[] }) {
             </div>
           </article>
         );
-      })}
-    </section>
+          })}
+        </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -669,6 +707,12 @@ function MexicoProfile({ row, allRows }: { row?: Row; allRows: Row[] }) {
               </span>
             ))}
           </div>
+          <ChartTakeaways
+            items={[
+              'Gas supplies 62.4% of Mexico’s electricity generation in this dataset.',
+              'Wind and solar together contribute 12.8%, while hydro adds 8.7%.',
+            ]}
+          />
         </section>
         <section className="chart-card compact">
           <ChartHeader
@@ -736,6 +780,12 @@ function MexicoProfile({ row, allRows }: { row?: Row; allRows: Row[] }) {
               Exports
             </span>
           </div>
+          <ChartTakeaways
+            items={[
+              'Domestic production exceeds either imports or exports considered separately.',
+              'Gross imports exceed gross exports, placing Mexico in a net-import position.',
+            ]}
+          />
         </section>
       </div>
       <p className="source-trace">
@@ -964,10 +1014,12 @@ export default function Home() {
           <section className="kpi-grid">
             {cards.map(([label, value, detail, Icon]) => (
               <article className="kpi-card" key={label}>
-                <div className="kpi-icon">
-                  <Icon size={16} strokeWidth={1.8} />
+                <div className="kpi-label">
+                  <div className="kpi-icon">
+                    <Icon size={14} strokeWidth={1.8} />
+                  </div>
+                  <p>{label}</p>
                 </div>
-                <p>{label}</p>
                 <strong>
                   {flag(value)} {value}
                 </strong>
@@ -1061,6 +1113,12 @@ export default function Home() {
                   Household price (USD/kWh)
                 </span>
               </div>
+              <ChartTakeaways
+                items={[
+                  'Consumption scale and household price do not move together consistently across markets.',
+                  'China leads consumption, while the United Kingdom and Germany sit at the high end of household prices.',
+                ]}
+              />
             </section>
             <section className="chart-card">
               <ChartHeader
@@ -1128,14 +1186,21 @@ export default function Home() {
                 </span>
                 <em>Iran: n.a.</em>
               </div>
+              <ChartTakeaways
+                items={[
+                  'The household–business price gap varies materially by market and is not always positive.',
+                  'Iran is excluded from the price comparison because both price fields are unavailable.',
+                ]}
+              />
             </section>
             <section id="mix">
               <div className="chapter-heading">
                 <p className="eyebrow">Composition</p>
                 <h2>What powers each economy</h2>
                 <p>
-                  Both views use the same source colors and rank countries by
-                  fossil share.
+                  Compare the selected markets on a common 100% scale. Labels
+                  appear on material shares, and both charts use one harmonized
+                  source palette.
                 </p>
               </div>
               <div className="analysis-grid">
@@ -1160,13 +1225,12 @@ export default function Home() {
                       <BarChart
                         data={electricMix}
                         layout="vertical"
-                        stackOffset="expand"
                         margin={{ top: 6, right: 18, bottom: 10, left: 75 }}
                       >
                         <XAxis
                           type="number"
-                          tickFormatter={(v) => `${Math.round(v * 100)}%`}
-                          domain={[0, 1]}
+                          tickFormatter={(v) => `${Math.round(v)}%`}
+                          domain={[0, 100]}
                           tick={{ fill: '#607074', fontSize: 10 }}
                           axisLine={false}
                           tickLine={false}
@@ -1187,46 +1251,62 @@ export default function Home() {
                           dataKey="electricity_generation_solar_pct"
                           name="Solar"
                           fill={COLORS.solar}
+                          label={{
+                            ...mixLabel,
+                            dataKey: 'electricity_generation_solar_pct',
+                          }}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_wind_pct"
                           name="Wind"
                           fill={COLORS.wind}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_oil_and_other_fossil_pct"
                           name="Oil & other fossil"
                           fill={COLORS.oil}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_gas_pct"
                           name="Gas"
                           fill={COLORS.gas}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_coal_pct"
                           name="Coal"
                           fill={COLORS.coal}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_hydro_pct"
                           name="Hydro"
                           fill={COLORS.hydro}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="electricity_generation_other_pct"
                           name="Other / non-fossil"
                           fill={COLORS.other}
+                          label={mixLabel}
                         />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  <ChartTakeaways
+                    items={[
+                      'Coal dominates electricity generation in China and India among the default markets.',
+                      'Gas is the largest generation source in the United States and Russia.',
+                    ]}
+                  />
                 </section>
                 <section className="chart-card compact">
                   <ChartHeader
@@ -1249,13 +1329,12 @@ export default function Home() {
                       <BarChart
                         data={primaryMix}
                         layout="vertical"
-                        stackOffset="expand"
                         margin={{ top: 6, right: 18, bottom: 10, left: 75 }}
                       >
                         <XAxis
                           type="number"
-                          tickFormatter={(v) => `${Math.round(v * 100)}%`}
-                          domain={[0, 1]}
+                          tickFormatter={(v) => `${Math.round(v)}%`}
+                          domain={[0, 100]}
                           tick={{ fill: '#607074', fontSize: 10 }}
                           axisLine={false}
                           tickLine={false}
@@ -1276,46 +1355,59 @@ export default function Home() {
                           dataKey="primary_energy_consumption_solar_pct"
                           name="Solar"
                           fill={COLORS.solar}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_wind_pct"
                           name="Wind"
                           fill={COLORS.wind}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_oil_pct"
                           name="Oil"
                           fill={COLORS.oil}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_gas_pct"
                           name="Gas"
                           fill={COLORS.gas}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_coal_pct"
                           name="Coal"
                           fill={COLORS.coal}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_hydro_pct"
                           name="Hydro"
                           fill={COLORS.hydro}
+                          label={mixLabel}
                         />
                         <Bar
                           stackId="mix"
                           dataKey="primary_energy_consumption_other_pct"
                           name="Other / non-fossil"
                           fill={COLORS.other}
+                          label={mixLabel}
                         />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  <ChartTakeaways
+                    items={[
+                      'Primary-energy demand remains fossil-heavy across the default comparison set.',
+                      'This mix differs from electricity generation because it also includes direct fuel use.',
+                    ]}
+                  />
                 </section>
               </div>
             </section>
@@ -1409,6 +1501,12 @@ export default function Home() {
                   Exports (shown negative)
                 </span>
               </div>
+              <ChartTakeaways
+                items={[
+                  'China and the United States lead domestic production within the default selection.',
+                  'Direction around the zero baseline separates import dependence from export strength.',
+                ]}
+              />
             </section>
             <section className="chart-card">
               <ChartHeader
@@ -1462,6 +1560,12 @@ export default function Home() {
                   </ScatterChart>
                 </ResponsiveContainer>
               </div>
+              <ChartTakeaways
+                items={[
+                  'Higher total energy consumption does not consistently imply a higher household electricity price.',
+                  'The relationship is descriptive and should not be interpreted as causal.',
+                ]}
+              />
             </section>
           </div>
         </TabsContent>
@@ -1476,6 +1580,9 @@ export default function Home() {
       </Tabs>
 
       <DataNotes />
+      <div className="creator-note">
+        Created by Nestor Esquivel · AI-assisted data storytelling
+      </div>
     </main>
   );
 }
