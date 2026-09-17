@@ -32,7 +32,10 @@ import {
   Factory,
   Globe2,
   Leaf,
+  Plus,
   ShieldCheck,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import {
   Select,
@@ -42,6 +45,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 type Row = Record<string, string | number | null> & {
   source_row_id: string;
@@ -433,6 +441,124 @@ function ConsumptionMap({ rows }: { rows: Row[] }) {
   );
 }
 
+function MetricRanges({ rows }: { rows: Row[] }) {
+  const configs = [
+    {
+      label: 'Total consumption',
+      field: 'total_energy_consumption_exajoules',
+      unit: 'EJ',
+      decimals: 2,
+    },
+    {
+      label: 'Household price',
+      field: 'household_price_usd_per_kwh',
+      unit: 'USD/kWh',
+      decimals: 3,
+    },
+    {
+      label: 'Business price',
+      field: 'business_price_usd_per_kwh',
+      unit: 'USD/kWh',
+      decimals: 3,
+    },
+    {
+      label: 'Net imports',
+      field: 'total_energy_net_imports_ej',
+      unit: 'EJ',
+      decimals: 2,
+    },
+  ] as const;
+  return (
+    <section className="range-grid" aria-label="Metric reference ranges">
+      {configs.map((config) => {
+        const values = rows
+          .map((row) => ({
+            country: row.country,
+            value: row[config.field] as number | null,
+          }))
+          .filter((item): item is { country: string; value: number } =>
+            Number.isFinite(item.value),
+          );
+        const min = [...values].sort((a, b) => a.value - b.value)[0];
+        const max = [...values].sort((a, b) => b.value - a.value)[0];
+        const average = values.length
+          ? values.reduce((sum, item) => sum + item.value, 0) / values.length
+          : 0;
+        const format = (value: number) =>
+          `${value.toFixed(config.decimals)} ${config.unit}`;
+        return (
+          <article key={config.field}>
+            <p>{config.label}</p>
+            <div>
+              <span>
+                <small>Min</small>
+                <b>{min ? format(min.value) : '—'}</b>
+                <em>{min ? `${flag(min.country)} ${min.country}` : ''}</em>
+              </span>
+              <span className="average">
+                <small>Average</small>
+                <b>{format(average)}</b>
+                <em>{values.length} markets</em>
+              </span>
+              <span>
+                <small>Max</small>
+                <b>{max ? format(max.value) : '—'}</b>
+                <em>{max ? `${flag(max.country)} ${max.country}` : ''}</em>
+              </span>
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function CountrySelector({
+  rows,
+  selected,
+  onChange,
+}: {
+  rows: Row[];
+  selected: string[];
+  onChange: (countries: string[]) => void;
+}) {
+  const available = rows.filter((row) => !selected.includes(row.country));
+  return (
+    <div className="country-selector" aria-label="Countries shown in chart">
+      {selected.map((country) => (
+        <button
+          type="button"
+          key={country}
+          onClick={() => onChange(selected.filter((item) => item !== country))}
+          aria-label={`Remove ${country}`}
+        >
+          <span>{flag(country)}</span>
+          {country}
+          <X size={12} />
+        </button>
+      ))}
+      {selected.length < 6 && available.length > 0 ? (
+        <Select
+          value={null}
+          onValueChange={(value) => value && onChange([...selected, value])}
+        >
+          <SelectTrigger className="add-country">
+            <Plus size={13} />
+            <SelectValue placeholder="Add country" />
+          </SelectTrigger>
+          <SelectContent>
+            {available.map((row) => (
+              <SelectItem key={row.country} value={row.country}>
+                {flag(row.country)} {row.country}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+    </div>
+  );
+}
+
 function MexicoProfile({ row, allRows }: { row?: Row; allRows: Row[] }) {
   if (!row) return <div className="empty-state">Mexico data is loading…</div>;
   const rank =
@@ -619,8 +745,55 @@ function MexicoProfile({ row, allRows }: { row?: Row; allRows: Row[] }) {
   );
 }
 
+function DataNotes() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="methodology" id="methods">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="method-summary">
+          <div>
+            <p className="eyebrow">Data notes</p>
+            <h2>What to know before using the numbers</h2>
+            <p>
+              The source is preserved, reporting years differ by metric, and
+              missing prices remain unavailable rather than becoming zero.
+            </p>
+          </div>
+          <div className="summary-points">
+            <span><b>15</b> unique country records</span>
+            <span><b>2023–2025</b> reporting periods</span>
+            <span><b>1</b> market with missing price data</span>
+          </div>
+        </div>
+        <CollapsibleTrigger className="method-trigger">
+          {open ? 'Hide full methodology' : 'Read full methodology'}
+          <ChevronDown size={16} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="method-grid">
+            <article><span>01</span><h3>Collection &amp; lineage</h3><p>The dashboard reads the provided chart-ready CSV without altering it. Each record retains <code>source_row_id</code>, a permanent pointer to the corresponding row in <code>energy-data.csv</code>. Calculated fields are produced in the browser from those values.</p></article>
+            <article><span>02</span><h3>Sources, dates &amp; units</h3><p>Source: the supplied 15-country energy dataset. Consumption and energy mixes report 2024; prices report December 2025; production and trade report 2023. Prices use USD/kWh, total-energy measures use exajoules, and shares use a 0–100 scale.</p></article>
+            <article><span>03</span><h3>Definitions</h3><p>Fossil share combines oil, gas and coal. Non-fossil is 100 minus fossil share; it is not labeled renewable because Other may include nuclear. Net imports equal gross imports minus gross exports.</p></article>
+            <article><span>04</span><h3>Missing data &amp; uncertainty</h3><p>Iran’s household and business prices are unavailable and remain blank—not zero. Percentages may carry rounding noise, and different reporting years prevent single-period causal interpretation.</p></article>
+            <article><span>05</span><h3>Bias &amp; limitations</h3><p>The selected countries emphasize large markets and are not globally exhaustive. National averages hide regional and sectoral variation. Tax, currency and accounting treatment may differ across national sources.</p></article>
+            <article><span>06</span><h3>Appropriate use</h3><p>Use the dashboard for directional benchmarking and executive discussion. Confirm country-specific definitions and newer releases before making investment, regulatory or operational decisions.</p></article>
+          </div>
+        </CollapsibleContent>
+        <div className="method-footer">
+          <div><span className="footer-mark"><ShieldCheck size={15}/></span><strong>15 unique source records · Source preserved</strong></div>
+          <a href="/energy-data-chart-ready.csv" download>Download source CSV</a>
+        </div>
+      </Collapsible>
+    </section>
+  );
+}
+
 export default function Home() {
   const [rows, setRows] = useState<Row[]>([]);
+  const defaultCountries = ['China', 'United States', 'India', 'Russia', 'Japan'];
+  const [powerCountries, setPowerCountries] = useState(defaultCountries);
+  const [primaryCountries, setPrimaryCountries] = useState(defaultCountries);
+  const [flowCountries, setFlowCountries] = useState(defaultCountries);
   useEffect(() => {
     fetch('/energy-data-chart-ready.csv')
       .then((r) => r.text())
@@ -671,17 +844,19 @@ export default function Home() {
       (b.household_price_usd_per_kwh ?? -1) -
       (a.household_price_usd_per_kwh ?? -1),
   );
-  const electricMix = [...rows].sort(
-    (a, b) => b.electricity_fossil_pct - a.electricity_fossil_pct,
-  );
-  const primaryMix = [...rows].sort(
-    (a, b) => b.primary_energy_fossil_pct - a.primary_energy_fossil_pct,
-  );
-  const flows = [...rows].sort(
-    (a, b) =>
-      b.total_energy_domestic_production_ej -
-      a.total_energy_domestic_production_ej,
-  );
+  const electricMix = rows
+    .filter((row) => powerCountries.includes(row.country))
+    .sort((a, b) => b.electricity_fossil_pct - a.electricity_fossil_pct);
+  const primaryMix = rows
+    .filter((row) => primaryCountries.includes(row.country))
+    .sort((a, b) => b.primary_energy_fossil_pct - a.primary_energy_fossil_pct);
+  const flows = rows
+    .filter((row) => flowCountries.includes(row.country))
+    .sort(
+      (a, b) =>
+        b.total_energy_domestic_production_ej -
+        a.total_energy_domestic_production_ej,
+    );
   const scatter = rows
     .filter((r) => r.household_price_usd_per_kwh != null)
     .map((r) => ({
@@ -775,17 +950,6 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="periods">
-          <div>
-            <span>2024</span>Consumption &amp; mix
-          </div>
-          <div>
-            <span>Dec 2025</span>Electricity prices
-          </div>
-          <div>
-            <span>2023</span>Production &amp; trade
-          </div>
-        </div>
       </section>
 
       <Tabs defaultValue="global" className="dashboard-tabs">
@@ -811,11 +975,12 @@ export default function Home() {
               </article>
             ))}
           </section>
+          <MetricRanges rows={rows} />
           <div className="dashboard-stack">
-            <ComparisonPanel rows={rows} />
             <div id="map">
               <ConsumptionMap rows={rows} />
             </div>
+            <ComparisonPanel rows={rows} />
             <section className="chart-card" id="prices">
               <ChartHeader
                 eyebrow="Scale versus cost"
@@ -981,6 +1146,11 @@ export default function Home() {
                     note="Share of generation · 2024"
                   />
                   <MixLegend />
+                  <CountrySelector
+                    rows={rows}
+                    selected={powerCountries}
+                    onChange={setPowerCountries}
+                  />
                   <div className="chart-wrap mix-chart">
                     <ResponsiveContainer
                       width="100%"
@@ -1065,6 +1235,11 @@ export default function Home() {
                     note="Share of consumption · 2024"
                   />
                   <MixLegend />
+                  <CountrySelector
+                    rows={rows}
+                    selected={primaryCountries}
+                    onChange={setPrimaryCountries}
+                  />
                   <div className="chart-wrap mix-chart">
                     <ResponsiveContainer
                       width="100%"
@@ -1145,10 +1320,23 @@ export default function Home() {
               </div>
             </section>
             <section className="chart-card" id="flows">
+              <div className="section-intro">
+                <p className="eyebrow">Supply &amp; trade</p>
+                <p>
+                  Compare how much energy each selected market produces at home
+                  and moves across its borders. Exports extend left of the zero
+                  baseline for faster directional reading.
+                </p>
+              </div>
               <ChartHeader
                 eyebrow="Supply position"
                 title="Energy production and international flows"
                 note="Exajoules · 2023"
+              />
+              <CountrySelector
+                rows={rows}
+                selected={flowCountries}
+                onChange={setFlowCountries}
               />
               <div className="chart-wrap flow-chart">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -1287,93 +1475,7 @@ export default function Home() {
         </TabsContent>
       </Tabs>
 
-      <section className="methodology" id="methods">
-        <div className="method-title">
-          <p className="eyebrow">Data notes</p>
-          <h2>How to read—and not overread—this dashboard</h2>
-          <p>
-            Transparency about provenance, timing and limitations is part of the
-            analysis.
-          </p>
-        </div>
-        <div className="method-grid">
-          <article>
-            <span>01</span>
-            <h3>Collection &amp; lineage</h3>
-            <p>
-              The dashboard reads the provided chart-ready CSV without altering
-              it. Each record retains <code>source_row_id</code>, a permanent
-              pointer to the corresponding row in the original{' '}
-              <code>energy-data.csv</code>. Calculated fields are produced in
-              the browser from those source values.
-            </p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Sources, dates &amp; units</h3>
-            <p>
-              Source: the supplied 15-country energy dataset. Consumption and
-              both energy mixes report 2024; household and business prices
-              report December 2025; production and trade report 2023. Prices are
-              USD/kWh, total-energy measures are exajoules, and shares use a
-              0–100 percent scale.
-            </p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Definitions</h3>
-            <p>
-              Fossil share is oil (or oil and other fossil), gas and coal
-              combined. Non-fossil is 100 minus fossil share; it is
-              intentionally not labeled “renewable” because Other may include
-              nuclear. Net imports equal gross imports minus gross exports;
-              negative values indicate a net exporter.
-            </p>
-          </article>
-          <article>
-            <span>04</span>
-            <h3>Missing data &amp; uncertainty</h3>
-            <p>
-              Iran’s household and business prices are unavailable and remain
-              blank—not zero. Published percentages may carry rounding noise.
-              Different reporting years mean charts should not be read as a
-              single-period causal model.
-            </p>
-          </article>
-          <article>
-            <span>05</span>
-            <h3>Bias &amp; limitations</h3>
-            <p>
-              The 15 selected countries emphasize large energy markets and are
-              not globally exhaustive. National averages can hide regional,
-              sectoral and tariff variation. Currency treatment, tax inclusion
-              and national accounting methods may differ; the source file does
-              not document those methodological details.
-            </p>
-          </article>
-          <article>
-            <span>06</span>
-            <h3>Appropriate use</h3>
-            <p>
-              Use this dashboard for directional benchmarking, hypothesis
-              formation and executive discussion. Confirm source-country
-              definitions and newer releases before making investment,
-              regulatory or operational decisions.
-            </p>
-          </article>
-        </div>
-        <div className="method-footer">
-          <div>
-            <span className="footer-mark">
-              <ShieldCheck size={15} />
-            </span>
-            <strong>15 unique source records · Source preserved</strong>
-          </div>
-          <a href="/energy-data-chart-ready.csv" download>
-            Download source CSV
-          </a>
-        </div>
-      </section>
+      <DataNotes />
     </main>
   );
 }
